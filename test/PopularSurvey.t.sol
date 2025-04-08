@@ -110,6 +110,20 @@ contract PopularSurveyTest is Test {
         vm.stopPrank();
     }
 
+    // Testea que el usuario quiere votar una opción válida pero ya ha votado
+    function testVoteValidOptionVotedTwiceRevert() public {
+        string memory name_ = "Bob";
+        uint256 age_ = 25;
+        string memory option_ = "A";
+
+        vm.startPrank(user1);
+        survey.registerVoter(name_, age_);
+        survey.vote(option_);
+        vm.expectRevert();
+        survey.vote(option_);
+        vm.stopPrank();
+    }
+
 
     // Testea que el contador de opciones funciona correctamente
     function testVoteAndResults() public {
@@ -137,6 +151,44 @@ contract PopularSurveyTest is Test {
         assertEq(opt1, 1);
         assertEq(opt2, 2);
         assertEq(opt3, 1);
+    }
+
+    function testFuzzVote(string memory selectedOption_, uint256 age_) public {
+
+        vm.assume(age_ >= 18);
+
+        vm.startPrank(user1);
+        (,, bool hasVotedInitial) = survey.voters(user1);
+        assertFalse(hasVotedInitial);
+
+        survey.registerVoter("FuzzName", age_);
+
+        
+        if (keccak256(bytes(selectedOption_)) != keccak256(bytes("A")) || 
+            keccak256(bytes(selectedOption_)) != keccak256(bytes("B")) || 
+            keccak256(bytes(selectedOption_)) != keccak256(bytes("C"))) {
+            vm.expectRevert();
+            survey.vote(selectedOption_);
+        } else {
+            survey.vote(selectedOption_);
+            (,, bool hasVoted) = survey.voters(user1);
+            assertTrue(hasVoted);
+            (uint a1,,) = survey.viewResults();
+            assert(a1 == 1);
+            vm.stopPrank();
+        }
+    }
+
+    function testFuzzRegisterVoter(string memory name_, uint256 age_, bool hasVoted_) public {
+        vm.assume(hasVoted_ == false);
+
+        vm.startPrank(user1);
+        survey.registerVoter(name_, age_);
+        (string memory name, uint256 age, bool hasVoted) = survey.voters(user1);
+        assertEq(keccak256(bytes(name)), keccak256(bytes(name_)), "Not matching name" );
+        assertEq(age, age_, "Not matching age");
+        assertEq(hasVoted, hasVoted_, "Not matching hasVoted");
+        vm.stopPrank();
     }
 
 }
